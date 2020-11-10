@@ -32,7 +32,7 @@ import com.alibaba.nacos.api.exception.NacosException;
 public class ConfigExample {
 
     public static void main(String[] args) throws NacosException, InterruptedException {
-        String serverAddr = "localhost";
+        String serverAddr = "101.132.178.242:8848";
         String dataId = "test";
         String group = "DEFAULT_GROUP";
         Properties properties = new Properties();
