@@ -29,16 +29,16 @@ import java.util.Map;
  * @author mai.jh
  */
 public final class HttpClientBeanHolder {
-    
+
     private static final Map<String, NacosRestTemplate> SINGLETON_REST = new HashMap<String, NacosRestTemplate>(10);
-    
+
     private static final Map<String, NacosAsyncRestTemplate> SINGLETON_ASYNC_REST = new HashMap<String, NacosAsyncRestTemplate>(
             10);
-    
+
     public static NacosRestTemplate getNacosRestTemplate(Logger logger) {
         return getNacosRestTemplate(new DefaultHttpClientFactory(logger));
     }
-    
+
     public static NacosRestTemplate getNacosRestTemplate(HttpClientFactory httpClientFactory) {
         if (httpClientFactory == null) {
             throw new NullPointerException("httpClientFactory is null");
@@ -46,6 +46,7 @@ public final class HttpClientBeanHolder {
         String factoryName = httpClientFactory.getClass().getName();
         NacosRestTemplate nacosRestTemplate = SINGLETON_REST.get(factoryName);
         if (nacosRestTemplate == null) {
+            //双重校验
             synchronized (SINGLETON_REST) {
                 nacosRestTemplate = SINGLETON_REST.get(factoryName);
                 if (nacosRestTemplate != null) {
@@ -57,11 +58,11 @@ public final class HttpClientBeanHolder {
         }
         return nacosRestTemplate;
     }
-    
+
     public static NacosAsyncRestTemplate getNacosAsyncRestTemplate(Logger logger) {
         return getNacosAsyncRestTemplate(new DefaultHttpClientFactory(logger));
     }
-    
+
     public static NacosAsyncRestTemplate getNacosAsyncRestTemplate(HttpClientFactory httpClientFactory) {
         if (httpClientFactory == null) {
             throw new NullPointerException("httpClientFactory is null");
@@ -80,7 +81,7 @@ public final class HttpClientBeanHolder {
         }
         return nacosAsyncRestTemplate;
     }
-    
+
     /**
      * Shutdown http client holder and close remove template.
      *
@@ -91,7 +92,7 @@ public final class HttpClientBeanHolder {
         shutdownNacostSyncRest(className);
         shutdownNacosAsyncRest(className);
     }
-    
+
     /**
      * Shutdown sync http client holder and remove template.
      *
@@ -105,7 +106,7 @@ public final class HttpClientBeanHolder {
             SINGLETON_REST.remove(className);
         }
     }
-    
+
     /**
      * Shutdown async http client holder and remove template.
      *

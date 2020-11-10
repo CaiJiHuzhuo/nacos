@@ -106,7 +106,7 @@ public class HostReactor implements Closeable {
         }
         ////初始化更新映射
         this.updatingMap = new ConcurrentHashMap<String, Object>();
-        //初始化容错服务
+        //初始化容错服务，故障转移，会启动1个名为com.alibaba.nacos.naming.failover的线程并定时读取名为00-00—000-VIPSRV_FAILOVER_SWITCH-000—00-00的文件，内容为1时表示开启，此时获取服务信息时会返回FailoverReactor缓存的服务信息。
         this.failoverReactor = new FailoverReactor(this, cacheDir);
         ///初始化pushReceiver用于接收服务端推送的UDP数据
         this.pushReceiver = new PushReceiver(this);

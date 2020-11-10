@@ -78,37 +78,37 @@ import static com.alibaba.nacos.client.utils.LogUtils.NAMING_LOGGER;
  * @author nkorange
  */
 public class NamingProxy implements Closeable {
-    
+
     private final NacosRestTemplate nacosRestTemplate = NamingHttpClientManager.getInstance().getNacosRestTemplate();
-    
+
     private static final int DEFAULT_SERVER_PORT = 8848;
-    
+
     private int serverPort = DEFAULT_SERVER_PORT;
-    
+
     private final String namespaceId;
-    
+
     private final String endpoint;
-    
+
     private String nacosDomain;
-    
+
     private List<String> serverList;
-    
+
     private List<String> serversFromEndpoint = new ArrayList<String>();
-    
+
     private final SecurityProxy securityProxy;
-    
+
     private long lastSrvRefTime = 0L;
-    
+
     private final long vipSrvRefInterMillis = TimeUnit.SECONDS.toMillis(30);
-    
+
     private final long securityInfoRefreshIntervalMills = TimeUnit.SECONDS.toMillis(5);
-    
+
     private Properties properties;
-    
+
     private ScheduledExecutorService executorService;
-    
+
     public NamingProxy(String namespaceId, String endpoint, String serverList, Properties properties) {
-        
+
         this.securityProxy = new SecurityProxy(properties, nacosRestTemplate);
         this.properties = properties;
         this.setServerPort(DEFAULT_SERVER_PORT);
@@ -122,9 +122,11 @@ public class NamingProxy implements Closeable {
         }
         this.initRefreshTask();
     }
-    
+
+    //NamingProxy的构造器执行了initRefreshSrvIfNeed方法，该方法在endpoint不为空的时候，会注册一个定时任务，
+    // 每隔vipSrvRefInterMillis时间执行一次refreshSrvIfNeed方法，同时立马调用了refreshSrvIfNeed方法
     private void initRefreshTask() {
-        
+
         this.executorService = new ScheduledThreadPoolExecutor(2, new ThreadFactory() {
             @Override
             public Thread newThread(Runnable r) {
@@ -134,27 +136,27 @@ public class NamingProxy implements Closeable {
                 return t;
             }
         });
-        
+
         this.executorService.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 refreshSrvIfNeed();
             }
         }, 0, vipSrvRefInterMillis, TimeUnit.MILLISECONDS);
-        
+
         this.executorService.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 securityProxy.login(getServerList());
             }
         }, 0, securityInfoRefreshIntervalMills, TimeUnit.MILLISECONDS);
-        
+
         refreshSrvIfNeed();
         this.securityProxy.login(getServerList());
     }
-    
+
     public List<String> getServerListFromEndpoint() {
-        
+
         try {
             String urlString = "http://" + endpoint + "/nacos/serverlist";
             Header header = builderHeader();
@@ -163,7 +165,7 @@ public class NamingProxy implements Closeable {
                 throw new IOException(
                         "Error while requesting: " + urlString + "'. Server returned: " + restResult.getCode());
             }
-            
+
             String content = restResult.getData();
             List<String> list = new ArrayList<String>();
             for (String line : IoUtils.readLines(new StringReader(content))) {
@@ -171,45 +173,47 @@ public class NamingProxy implements Closeable {
                     list.add(line.trim());
                 }
             }
-            
+
             return list;
-            
+
         } catch (Exception e) {
             e.printStackTrace();
         }
-        
+
         return null;
     }
-    
+
+    //如果serverlist不是用户提供的，且距离lastSrvRefTime大于等于vipSrvRefInterMillis时
+    //会通过getServerListFromEndpoint()方法获取serverList更新serversFromEndpoint及lastSrvRefTime
     private void refreshSrvIfNeed() {
         try {
-            
+
             if (!CollectionUtils.isEmpty(serverList)) {
                 NAMING_LOGGER.debug("server list provided by user: " + serverList);
                 return;
             }
-            
+
             if (System.currentTimeMillis() - lastSrvRefTime < vipSrvRefInterMillis) {
                 return;
             }
-            
+
             List<String> list = getServerListFromEndpoint();
-            
+
             if (CollectionUtils.isEmpty(list)) {
                 throw new Exception("Can not acquire Nacos list");
             }
-            
+
             if (!CollectionUtils.isEqualCollection(list, serversFromEndpoint)) {
                 NAMING_LOGGER.info("[SERVER-LIST] server list is updated: " + list);
             }
-            
+
             serversFromEndpoint = list;
             lastSrvRefTime = System.currentTimeMillis();
         } catch (Throwable e) {
             NAMING_LOGGER.warn("failed to update server list", e);
         }
     }
-    
+
     /**
      * register a instance to service with specified instance properties.
      *
@@ -219,10 +223,10 @@ public class NamingProxy implements Closeable {
      * @throws NacosException nacos exception
      */
     public void registerService(String serviceName, String groupName, Instance instance) throws NacosException {
-        
+
         NAMING_LOGGER.info("[REGISTER-SERVICE] {} registering service {} with instance: {}", namespaceId, serviceName,
                 instance);
-        
+
         final Map<String, String> params = new HashMap<String, String>(16);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
@@ -235,11 +239,11 @@ public class NamingProxy implements Closeable {
         params.put("healthy", String.valueOf(instance.isHealthy()));
         params.put("ephemeral", String.valueOf(instance.isEphemeral()));
         params.put("metadata", JacksonUtils.toJson(instance.getMetadata()));
-        
+
         reqApi(UtilAndComs.nacosUrlInstance, params, HttpMethod.POST);
-        
+
     }
-    
+
     /**
      * deregister instance from a service.
      *
@@ -248,11 +252,11 @@ public class NamingProxy implements Closeable {
      * @throws NacosException nacos exception
      */
     public void deregisterService(String serviceName, Instance instance) throws NacosException {
-        
+
         NAMING_LOGGER
                 .info("[DEREGISTER-SERVICE] {} deregistering service {} with instance: {}", namespaceId, serviceName,
                         instance);
-        
+
         final Map<String, String> params = new HashMap<String, String>(8);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
@@ -260,10 +264,10 @@ public class NamingProxy implements Closeable {
         params.put("ip", instance.getIp());
         params.put("port", String.valueOf(instance.getPort()));
         params.put("ephemeral", String.valueOf(instance.isEphemeral()));
-        
+
         reqApi(UtilAndComs.nacosUrlInstance, params, HttpMethod.DELETE);
     }
-    
+
     /**
      * Update instance to service.
      *
@@ -275,7 +279,7 @@ public class NamingProxy implements Closeable {
     public void updateInstance(String serviceName, String groupName, Instance instance) throws NacosException {
         NAMING_LOGGER
                 .info("[UPDATE-SERVICE] {} update service {} with instance: {}", namespaceId, serviceName, instance);
-        
+
         final Map<String, String> params = new HashMap<String, String>(8);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
@@ -287,10 +291,10 @@ public class NamingProxy implements Closeable {
         params.put("enabled", String.valueOf(instance.isEnabled()));
         params.put("ephemeral", String.valueOf(instance.isEphemeral()));
         params.put("metadata", JacksonUtils.toJson(instance.getMetadata()));
-        
+
         reqApi(UtilAndComs.nacosUrlInstance, params, HttpMethod.PUT);
     }
-    
+
     /**
      * Query Service.
      *
@@ -301,16 +305,16 @@ public class NamingProxy implements Closeable {
      */
     public Service queryService(String serviceName, String groupName) throws NacosException {
         NAMING_LOGGER.info("[QUERY-SERVICE] {} query service : {}, {}", namespaceId, serviceName, groupName);
-        
+
         final Map<String, String> params = new HashMap<String, String>(3);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
         params.put(CommonParams.GROUP_NAME, groupName);
-        
+
         String result = reqApi(UtilAndComs.nacosUrlService, params, HttpMethod.GET);
         return JacksonUtils.toObj(result, Service.class);
     }
-    
+
     /**
      * Create service.
      *
@@ -319,9 +323,9 @@ public class NamingProxy implements Closeable {
      * @throws NacosException nacos exception
      */
     public void createService(Service service, AbstractSelector selector) throws NacosException {
-        
+
         NAMING_LOGGER.info("[CREATE-SERVICE] {} creating service : {}", namespaceId, service);
-        
+
         final Map<String, String> params = new HashMap<String, String>(6);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, service.getName());
@@ -329,11 +333,11 @@ public class NamingProxy implements Closeable {
         params.put("protectThreshold", String.valueOf(service.getProtectThreshold()));
         params.put("metadata", JacksonUtils.toJson(service.getMetadata()));
         params.put("selector", JacksonUtils.toJson(selector));
-        
+
         reqApi(UtilAndComs.nacosUrlService, params, HttpMethod.POST);
-        
+
     }
-    
+
     /**
      * Delete service.
      *
@@ -345,16 +349,16 @@ public class NamingProxy implements Closeable {
     public boolean deleteService(String serviceName, String groupName) throws NacosException {
         NAMING_LOGGER.info("[DELETE-SERVICE] {} deleting service : {} with groupName : {}", namespaceId, serviceName,
                 groupName);
-        
+
         final Map<String, String> params = new HashMap<String, String>(6);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
         params.put(CommonParams.GROUP_NAME, groupName);
-        
+
         String result = reqApi(UtilAndComs.nacosUrlService, params, HttpMethod.DELETE);
         return "ok".equals(result);
     }
-    
+
     /**
      * Update service.
      *
@@ -364,7 +368,7 @@ public class NamingProxy implements Closeable {
      */
     public void updateService(Service service, AbstractSelector selector) throws NacosException {
         NAMING_LOGGER.info("[UPDATE-SERVICE] {} updating service : {}", namespaceId, service);
-        
+
         final Map<String, String> params = new HashMap<String, String>(6);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, service.getName());
@@ -372,10 +376,10 @@ public class NamingProxy implements Closeable {
         params.put("protectThreshold", String.valueOf(service.getProtectThreshold()));
         params.put("metadata", JacksonUtils.toJson(service.getMetadata()));
         params.put("selector", JacksonUtils.toJson(selector));
-        
+
         reqApi(UtilAndComs.nacosUrlService, params, HttpMethod.PUT);
     }
-    
+
     /**
      * Query instance list.
      *
@@ -388,7 +392,7 @@ public class NamingProxy implements Closeable {
      */
     public String queryList(String serviceName, String clusters, int udpPort, boolean healthyOnly)
             throws NacosException {
-        
+
         final Map<String, String> params = new HashMap<String, String>(8);
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.SERVICE_NAME, serviceName);
@@ -396,10 +400,10 @@ public class NamingProxy implements Closeable {
         params.put("udpPort", String.valueOf(udpPort));
         params.put("clientIP", NetUtils.localIP());
         params.put("healthyOnly", String.valueOf(healthyOnly));
-        
+
         return reqApi(UtilAndComs.nacosUrlBase + "/instance/list", params, HttpMethod.GET);
     }
-    
+
     /**
      * Send beat.
      *
@@ -409,7 +413,7 @@ public class NamingProxy implements Closeable {
      * @throws NacosException nacos exception
      */
     public JsonNode sendBeat(BeatInfo beatInfo, boolean lightBeatEnabled) throws NacosException {
-        
+
         if (NAMING_LOGGER.isDebugEnabled()) {
             NAMING_LOGGER.debug("[BEAT] {} sending beat to server: {}", namespaceId, beatInfo.toString());
         }
@@ -426,14 +430,14 @@ public class NamingProxy implements Closeable {
         String result = reqApi(UtilAndComs.nacosUrlBase + "/instance/beat", params, bodyMap, HttpMethod.PUT);
         return JacksonUtils.toObj(result);
     }
-    
+
     /**
      * Check Server healthy.
      *
      * @return true if server is healthy
      */
     public boolean serverHealthy() {
-        
+
         try {
             String result = reqApi(UtilAndComs.nacosUrlBase + "/operator/metrics", new HashMap<String, String>(2),
                     HttpMethod.GET);
@@ -444,20 +448,20 @@ public class NamingProxy implements Closeable {
             return false;
         }
     }
-    
+
     public ListView<String> getServiceList(int pageNo, int pageSize, String groupName) throws NacosException {
         return getServiceList(pageNo, pageSize, groupName, null);
     }
-    
+
     public ListView<String> getServiceList(int pageNo, int pageSize, String groupName, AbstractSelector selector)
             throws NacosException {
-        
+
         Map<String, String> params = new HashMap<String, String>(4);
         params.put("pageNo", String.valueOf(pageNo));
         params.put("pageSize", String.valueOf(pageSize));
         params.put(CommonParams.NAMESPACE_ID, namespaceId);
         params.put(CommonParams.GROUP_NAME, groupName);
-        
+
         if (selector != null) {
             switch (SelectorType.valueOf(selector.getType())) {
                 case none:
@@ -470,27 +474,27 @@ public class NamingProxy implements Closeable {
                     break;
             }
         }
-        
+
         String result = reqApi(UtilAndComs.nacosUrlBase + "/service/list", params, HttpMethod.GET);
-        
+
         JsonNode json = JacksonUtils.toObj(result);
         ListView<String> listView = new ListView<String>();
         listView.setCount(json.get("count").asInt());
         listView.setData(JacksonUtils.toObj(json.get("doms").toString(), new TypeReference<List<String>>() {
         }));
-        
+
         return listView;
     }
-    
+
     public String reqApi(String api, Map<String, String> params, String method) throws NacosException {
         return reqApi(api, params, Collections.EMPTY_MAP, method);
     }
-    
+
     public String reqApi(String api, Map<String, String> params, Map<String, String> body, String method)
             throws NacosException {
         return reqApi(api, params, body, getServerList(), method);
     }
-    
+
     /**
      * Request api.
      *
@@ -504,20 +508,20 @@ public class NamingProxy implements Closeable {
      */
     public String reqApi(String api, Map<String, String> params, Map<String, String> body, List<String> servers,
             String method) throws NacosException {
-        
+
         params.put(CommonParams.NAMESPACE_ID, getNamespaceId());
-        
+
         if (CollectionUtils.isEmpty(servers) && StringUtils.isEmpty(nacosDomain)) {
             throw new NacosException(NacosException.INVALID_PARAM, "no server available");
         }
-        
+
         NacosException exception = new NacosException();
-        
+
         if (servers != null && !servers.isEmpty()) {
-            
+
             Random random = new Random(System.currentTimeMillis());
             int index = random.nextInt(servers.size());
-            
+
             for (int i = 0; i < servers.size(); i++) {
                 String server = servers.get(index);
                 try {
@@ -531,7 +535,7 @@ public class NamingProxy implements Closeable {
                 index = (index + 1) % servers.size();
             }
         }
-        
+
         if (StringUtils.isNotBlank(nacosDomain)) {
             for (int i = 0; i < UtilAndComs.REQUEST_DOMAIN_RETRY_COUNT; i++) {
                 try {
@@ -544,15 +548,15 @@ public class NamingProxy implements Closeable {
                 }
             }
         }
-        
+
         NAMING_LOGGER.error("request: {} failed, servers: {}, code: {}, msg: {}", api, servers, exception.getErrCode(),
                 exception.getErrMsg());
-        
+
         throw new NacosException(exception.getErrCode(),
                 "failed to req API:" + api + " after all servers(" + servers + ") tried: " + exception.getMessage());
-        
+
     }
-    
+
     private List<String> getServerList() {
         List<String> snapshot = serversFromEndpoint;
         if (!CollectionUtils.isEmpty(serverList)) {
@@ -560,12 +564,12 @@ public class NamingProxy implements Closeable {
         }
         return snapshot;
     }
-    
+
     public String callServer(String api, Map<String, String> params, Map<String, String> body, String curServer)
             throws NacosException {
         return callServer(api, params, body, curServer, HttpMethod.GET);
     }
-    
+
     /**
      * Call server.
      *
@@ -583,7 +587,7 @@ public class NamingProxy implements Closeable {
         long end = 0;
         injectSecurityInfo(params);
         Header header = builderHeader();
-        
+
         String url;
         if (curServer.startsWith(UtilAndComs.HTTPS) || curServer.startsWith(UtilAndComs.HTTP)) {
             url = curServer + api;
@@ -593,15 +597,15 @@ public class NamingProxy implements Closeable {
             }
             url = NamingHttpClientManager.getInstance().getPrefix() + curServer + api;
         }
-        
+
         try {
             HttpRestResult<String> restResult = nacosRestTemplate
                     .exchangeForm(url, header, Query.newInstance().initParams(params), body, method, String.class);
             end = System.currentTimeMillis();
-            
+
             MetricsMonitor.getNamingRequestMonitor(method, url, String.valueOf(restResult.getCode()))
                     .observe(end - start);
-            
+
             if (restResult.ok()) {
                 return restResult.getData();
             }
@@ -614,14 +618,14 @@ public class NamingProxy implements Closeable {
             throw new NacosException(NacosException.SERVER_ERROR, e);
         }
     }
-    
+
     private void injectSecurityInfo(Map<String, String> params) {
-        
+
         // Inject token if exist:
         if (StringUtils.isNotBlank(securityProxy.getAccessToken())) {
             params.put(Constants.ACCESS_TOKEN, securityProxy.getAccessToken());
         }
-        
+
         // Inject ak/sk if exist:
         String ak = getAccessKey();
         String sk = getSecretKey();
@@ -638,7 +642,7 @@ public class NamingProxy implements Closeable {
             }
         }
     }
-    
+
     /**
      * Build header.
      *
@@ -654,34 +658,34 @@ public class NamingProxy implements Closeable {
         header.addParam(HttpHeaderConsts.REQUEST_MODULE, "Naming");
         return header;
     }
-    
+
     private static String getSignData(String serviceName) {
         return StringUtils.isNotEmpty(serviceName) ? System.currentTimeMillis() + "@@" + serviceName
                 : String.valueOf(System.currentTimeMillis());
     }
-    
+
     public String getAccessKey() {
         if (properties == null) {
-            
+
             return SpasAdapter.getAk();
         }
-        
+
         return TemplateUtils
                 .stringEmptyAndThenExecute(properties.getProperty(PropertyKeyConst.ACCESS_KEY), new Callable<String>() {
-                    
+
                     @Override
                     public String call() {
                         return SpasAdapter.getAk();
                     }
                 });
     }
-    
+
     public String getSecretKey() {
         if (properties == null) {
-            
+
             return SpasAdapter.getSk();
         }
-        
+
         return TemplateUtils
                 .stringEmptyAndThenExecute(properties.getProperty(PropertyKeyConst.SECRET_KEY), new Callable<String>() {
                     @Override
@@ -690,25 +694,25 @@ public class NamingProxy implements Closeable {
                     }
                 });
     }
-    
+
     public void setProperties(Properties properties) {
         this.properties = properties;
         setServerPort(DEFAULT_SERVER_PORT);
     }
-    
+
     public String getNamespaceId() {
         return namespaceId;
     }
-    
+
     public void setServerPort(int serverPort) {
         this.serverPort = serverPort;
-        
+
         String sp = System.getProperty(SystemPropertyKeyConst.NAMING_SERVER_PORT);
         if (StringUtils.isNotBlank(sp)) {
             this.serverPort = Integer.parseInt(sp);
         }
     }
-    
+
     @Override
     public void shutdown() throws NacosException {
         String className = this.getClass().getName();
