@@ -620,7 +620,7 @@ public class ClientWorker implements Closeable {
                     }
                 }
 
-                // check server config
+                // check server config,获取键值
                 List<String> changedGroupKeys = checkUpdateDataIds(cacheDatas, inInitializingCacheList);
                 if (!CollectionUtils.isEmpty(changedGroupKeys)) {
                     LOGGER.info("get changedGroupKeys:" + changedGroupKeys);
@@ -635,6 +635,7 @@ public class ClientWorker implements Closeable {
                         tenant = key[2];
                     }
                     try {
+                        //获取变更内容
                         String[] ct = getServerConfig(dataId, group, tenant, 3000L);
                         CacheData cache = cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));
                         cache.setContent(ct[0]);
