@@ -28,6 +28,7 @@ import com.alibaba.nacos.api.naming.NamingService;
  * @author xxc
  */
 public class App {
+
     public static void main(String[] args) throws NacosException {
         Properties properties = new Properties();
         properties.setProperty("serverAddr", "101.132.178.242:8848");
