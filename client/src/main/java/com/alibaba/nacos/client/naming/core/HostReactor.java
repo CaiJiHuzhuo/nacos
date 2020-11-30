@@ -264,18 +264,21 @@ public class HostReactor implements Closeable {
 
         NAMING_LOGGER.debug("failover-mode: " + failoverReactor.isFailoverSwitch());
         String key = ServiceInfo.getKey(serviceName, clusters);
+        //注册中心与服务提供方失去联系，会将该服务置成Failover状态
         if (failoverReactor.isFailoverSwitch()) {
+            //直接从缓存中获取服务信息，取不到返回空
             return failoverReactor.getService(key);
         }
-
+        //从本地缓存map中取
         ServiceInfo serviceObj = getServiceInfo0(serviceName, clusters);
-
+        //本地缓存没有，则请求注册中心，并更新本地缓存
         if (null == serviceObj) {
             serviceObj = new ServiceInfo(serviceName, clusters);
 
             serviceInfoMap.put(serviceObj.getKey(), serviceObj);
 
             updatingMap.put(serviceName, new Object());
+            //请求注册中心，更新本地缓存
             updateServiceNow(serviceName, clusters);
             updatingMap.remove(serviceName);
 
@@ -294,6 +297,7 @@ public class HostReactor implements Closeable {
             }
         }
 
+        //生成定时任务，等一段时间再执行更新操作
         scheduleUpdateIfAbsent(serviceName, clusters);
 
         return serviceInfoMap.get(serviceObj.getKey());
@@ -314,6 +318,7 @@ public class HostReactor implements Closeable {
      * @param clusters    clusters
      */
     public void scheduleUpdateIfAbsent(String serviceName, String clusters) {
+        //缓存中存在，直接返回
         if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
             return;
         }
@@ -323,6 +328,7 @@ public class HostReactor implements Closeable {
                 return;
             }
 
+            //缓存中没有，生成一个任务，定时延迟执行，该任务是循环回调自己的任务
             ScheduledFuture<?> future = addTask(new UpdateTask(serviceName, clusters));
             futureMap.put(ServiceInfo.getKey(serviceName, clusters), future);
         }
@@ -335,9 +341,10 @@ public class HostReactor implements Closeable {
      * @param clusters    clusters
      */
     public void updateService(String serviceName, String clusters) throws NacosException {
+        //先取本地缓存
         ServiceInfo oldService = getServiceInfo0(serviceName, clusters);
         try {
-
+            //从配置中心拉取
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUdpPort(), false);
 
             if (StringUtils.isNotEmpty(result)) {
@@ -419,6 +426,7 @@ public class HostReactor implements Closeable {
                 }
 
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
+                    //请求注册中心
                     updateService(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
                 } else {

@@ -212,6 +212,7 @@ public class NacosNamingService implements NamingService {
     @Override
     public void registerInstance(String serviceName, String groupName, Instance instance) throws NacosException {
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
+        //临时节点需要发送心跳
         if (instance.isEphemeral()) {
             BeatInfo beatInfo = beatReactor.buildBeatInfo(groupedServiceName, instance);
             beatReactor.addBeatInfo(groupedServiceName, beatInfo);
@@ -302,10 +303,13 @@ public class NacosNamingService implements NamingService {
             boolean subscribe) throws NacosException {
 
         ServiceInfo serviceInfo;
+        //是否订阅了服务，默认为true
         if (subscribe) {
+            //从缓存或注册中心获取服务信息
             serviceInfo = hostReactor.getServiceInfo(NamingUtils.getGroupedName(serviceName, groupName),
                     StringUtils.join(clusters, ","));
         } else {
+            //直接从注册中心获取服务
             serviceInfo = hostReactor
                     .getServiceInfoDirectlyFromServer(NamingUtils.getGroupedName(serviceName, groupName),
                             StringUtils.join(clusters, ","));

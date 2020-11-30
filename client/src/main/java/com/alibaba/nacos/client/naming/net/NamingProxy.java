@@ -419,6 +419,7 @@ public class NamingProxy implements Closeable {
         }
         Map<String, String> params = new HashMap<String, String>(8);
         Map<String, String> bodyMap = new HashMap<String, String>(2);
+        //第一次发，携带body
         if (!lightBeatEnabled) {
             bodyMap.put("beat", JacksonUtils.toJson(beatInfo));
         }

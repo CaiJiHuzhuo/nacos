@@ -162,7 +162,7 @@ public class EventDispatcher implements Closeable {
 
                 ServiceInfo serviceInfo = null;
                 try {
-                    //从队列中取出消息
+                    //从队列中取出消息,等待5分钟
                     serviceInfo = changedServices.poll(5, TimeUnit.MINUTES);
                 } catch (Exception ignore) {
                 }
