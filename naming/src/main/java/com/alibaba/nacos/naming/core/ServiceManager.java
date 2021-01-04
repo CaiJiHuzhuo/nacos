@@ -464,7 +464,7 @@ public class ServiceManager implements RecordListener<Service> {
             throws NacosException {
         Service service = getService(namespaceId, serviceName);
         if (service == null) {
-            //组装service参数
+
             Loggers.SRV_LOG.info("creating empty service {}:{}", namespaceId, serviceName);
             service = new Service();
             service.setName(serviceName);
@@ -478,7 +478,7 @@ public class ServiceManager implements RecordListener<Service> {
                 service.getClusterMap().put(cluster.getName(), cluster);
             }
             service.validate();
-            //把service放入ServiceMap中，并init
+            //put init service
             putServiceAndInit(service);
             if (!local) {
                 addOrReplaceService(service);
@@ -497,7 +497,7 @@ public class ServiceManager implements RecordListener<Service> {
      * @throws Exception any error occurred in the process
      */
     public void registerInstance(String namespaceId, String serviceName, Instance instance) throws NacosException {
-        //服务不存在先创服务
+
         createEmptyService(namespaceId, serviceName, instance.isEphemeral());
 
         Service service = getService(namespaceId, serviceName);
@@ -506,7 +506,7 @@ public class ServiceManager implements RecordListener<Service> {
             throw new NacosException(NacosException.INVALID_PARAM,
                     "service not found, namespace: " + namespaceId + ", service: " + serviceName);
         }
-        //加实例
+
         addInstance(namespaceId, serviceName, instance.isEphemeral(), instance);
     }
 
@@ -647,13 +647,12 @@ public class ServiceManager implements RecordListener<Service> {
 
         Service service = getService(namespaceId, serviceName);
 
-        //给service加锁，保证在添加实例的过程中，服务不会被删除。
         synchronized (service) {
             List<Instance> instanceList = addIpAddresses(service, ephemeral, ips);
 
             Instances instances = new Instances();
             instances.setInstanceList(instanceList);
-            //DelegateConsistencyServiceImpl put key instance
+            //集群间同步
             consistencyService.put(key, instances);
         }
     }
@@ -681,12 +680,11 @@ public class ServiceManager implements RecordListener<Service> {
 
         String key = KeyBuilder.buildInstanceListKey(namespaceId, serviceName, ephemeral);
 
-        //删除instance
         List<Instance> instanceList = substractIpAddresses(service, ephemeral, ips);
 
         Instances instances = new Instances();
         instances.setInstanceList(instanceList);
-        //重新put
+
         consistencyService.put(key, instances);
     }
 
@@ -877,8 +875,9 @@ public class ServiceManager implements RecordListener<Service> {
     }
 
     private void putServiceAndInit(Service service) throws NacosException {
-        //放入serviceMap中
+        //向serviceMap中添加 服务
         putService(service);
+        //服务初始化
         service.init();
         consistencyService
                 .listen(KeyBuilder.buildInstanceListKey(service.getNamespaceId(), service.getName(), true), service);

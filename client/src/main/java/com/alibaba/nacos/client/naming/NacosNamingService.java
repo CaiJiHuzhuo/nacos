@@ -210,9 +210,11 @@ public class NacosNamingService implements NamingService {
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
         //是否是临时实例
         if (instance.isEphemeral()) {
+            //构建心跳实例beatinfo，Period = 5秒
             BeatInfo beatInfo = beatReactor.buildBeatInfo(groupedServiceName, instance);
             beatReactor.addBeatInfo(groupedServiceName, beatInfo);
         }
+        //向服务端注册请求
         serverProxy.registerService(groupedServiceName, groupName, instance);
     }
 
@@ -250,9 +252,11 @@ public class NacosNamingService implements NamingService {
     @Override
     public void deregisterInstance(String serviceName, String groupName, Instance instance) throws NacosException {
         if (instance.isEphemeral()) {
+            //移除心跳，停止任务
             beatReactor.removeBeatInfo(NamingUtils.getGroupedName(serviceName, groupName), instance.getIp(),
                     instance.getPort());
         }
+        //向服务端发送注销服务的请求
         serverProxy.deregisterService(NamingUtils.getGroupedName(serviceName, groupName), instance);
     }
 

@@ -73,6 +73,7 @@ public class NacosConfigService implements ConfigService {
     private final ConfigFilterChainManager configFilterChainManager = new ConfigFilterChainManager();
 
     public NacosConfigService(Properties properties) throws NacosException {
+        //校验参数
         ValidatorUtils.checkInitParam(properties);
         String encodeTmp = properties.getProperty(PropertyKeyConst.ENCODE);
         if (StringUtils.isBlank(encodeTmp)) {
@@ -81,8 +82,7 @@ public class NacosConfigService implements ConfigService {
             this.encode = encodeTmp.trim();
         }
         initNamespace(properties);
-
-        //获取http代理对象，线程池定时执行login，当没有配置user的时候默认为true
+        //配置http以及校验
         this.agent = new MetricsHttpAgent(new ServerHttpAgent(properties));
         this.agent.start();
         //长轮询任务
@@ -166,6 +166,8 @@ public class NacosConfigService implements ConfigService {
 
         LOGGER.warn("[{}] [get-config] get snapshot ok, dataId={}, group={}, tenant={}, config={}", agent.getName(),
                 dataId, group, tenant, ContentUtils.truncateContent(content));
+
+        //如果服务器获取失败，则从Snapshot中获取
         content = LocalConfigInfoProcessor.getSnapshot(agent.getName(), dataId, group, tenant);
         cr.setContent(content);
         configFilterChainManager.doFilter(null, cr);
@@ -180,6 +182,7 @@ public class NacosConfigService implements ConfigService {
     private boolean removeConfigInner(String tenant, String dataId, String group, String tag) throws NacosException {
         group = null2defaultGroup(group);
         ParamUtils.checkKeyParam(dataId, group);
+        //组装参数
         String url = Constants.CONFIG_CONTROLLER_PATH;
         Map<String, String> params = new HashMap<String, String>(4);
         params.put("dataId", dataId);
@@ -193,6 +196,7 @@ public class NacosConfigService implements ConfigService {
         }
         HttpRestResult<String> result = null;
         try {
+            //发送请求
             result = agent.httpDelete(url, null, params, encode, POST_TIMEOUT);
         } catch (Exception ex) {
             LOGGER.warn("[remove] error, " + dataId + ", " + group + ", " + tenant + ", msg: " + ex.toString());
@@ -226,6 +230,7 @@ public class NacosConfigService implements ConfigService {
         configFilterChainManager.doFilter(cr, null);
         content = cr.getContent();
 
+        //组装参数
         String url = Constants.CONFIG_CONTROLLER_PATH;
         Map<String, String> params = new HashMap<String, String>(6);
         params.put("dataId", dataId);
@@ -247,6 +252,7 @@ public class NacosConfigService implements ConfigService {
 
         HttpRestResult<String> result = null;
         try {
+            //向服务器发送请求
             result = agent.httpPost(url, headers, params, encode, POST_TIMEOUT);
         } catch (Exception ex) {
             LOGGER.warn("[{}] [publish-single] exception, dataId={}, group={}, msg={}", agent.getName(), dataId, group,

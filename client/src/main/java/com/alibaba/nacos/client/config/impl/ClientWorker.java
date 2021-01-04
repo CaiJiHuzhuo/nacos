@@ -249,6 +249,7 @@ public class ClientWorker implements Closeable {
             } else {
                 cache = new CacheData(configFilterChainManager, agent.getName(), dataId, group, tenant);
                 // fix issue # 1317
+                //获取数据
                 if (enableRemoteSyncConfig) {
                     String[] ct = getServerConfig(dataId, group, tenant, 3000L);
                     cache.setContent(ct[0]);
@@ -257,6 +258,7 @@ public class ClientWorker implements Closeable {
 
             Map<String, CacheData> copy = new HashMap<String, CacheData>(this.cacheMap.get());
             copy.put(key, cache);
+            //监听的时候往cachemap中put 配置缓存
             cacheMap.set(copy);
         }
         LOGGER.info("[{}] [subscribe] {}", agent.getName(), key);
@@ -295,6 +297,7 @@ public class ClientWorker implements Closeable {
                 params.put("group", group);
                 params.put("tenant", tenant);
             }
+            //服务器查询配置
             result = agent.httpGet(Constants.CONFIG_CONTROLLER_PATH, null, params, agent.getEncode(), readTimeout);
         } catch (Exception ex) {
             String message = String
@@ -306,6 +309,7 @@ public class ClientWorker implements Closeable {
 
         switch (result.getCode()) {
             case HttpURLConnection.HTTP_OK:
+                //快照
                 LocalConfigInfoProcessor.saveSnapshot(agent.getName(), dataId, group, tenant, result.getData());
                 ct[0] = result.getData();
                 if (result.getHeader().getValue(CONFIG_TYPE) != null) {
@@ -345,7 +349,7 @@ public class ClientWorker implements Closeable {
         final String tenant = cacheData.tenant;
         File path = LocalConfigInfoProcessor.getFailoverFile(agent.getName(), dataId, group, tenant);
 
-        //b没用本地配置，文件存在，将客户端的缓存更新为本地配置
+        //没有使用本地配置，但是配置存在，主动开启本地配置
         if (!cacheData.isUseLocalConfigInfo() && path.exists()) {
             String content = LocalConfigInfoProcessor.getFailover(agent.getName(), dataId, group, tenant);
             final String md5 = MD5Utils.md5Hex(content, Constants.ENCODE);
@@ -359,7 +363,7 @@ public class ClientWorker implements Closeable {
             return;
         }
 
-        //如果使用的是本地配置，但是本地配置不存在，会等到后面去服务端请求数据获取
+        //开启了本地配置，但是文件被删除了，把本地配置置为false
         // If use local config info, then it doesn't notify business listener and notify after getting from server.
         if (cacheData.isUseLocalConfigInfo() && !path.exists()) {
             cacheData.setUseLocalConfigInfo(false);
@@ -368,7 +372,7 @@ public class ClientWorker implements Closeable {
             return;
         }
 
-        //如果使用的是本地配置，并且本地配置也存在，但是本地配置文件已更新，则将最新的本地配置文件缓存到内存中，比较文件版本
+        //使用本地配置，文件存在，但是被变更了，重新加载文件
         // When it changed.
         if (cacheData.isUseLocalConfigInfo() && path.exists() && cacheData.getLocalConfigInfoVersion() != path
                 .lastModified()) {
@@ -398,6 +402,7 @@ public class ClientWorker implements Closeable {
         if (longingTaskCount > currentLongingTaskCount) {
             for (int i = (int) currentLongingTaskCount; i < longingTaskCount; i++) {
                 // The task list is no order.So it maybe has issues when changing.
+                //长轮询任务
                 executorService.execute(new LongPollingRunnable(i));
             }
             currentLongingTaskCount = longingTaskCount;
@@ -557,6 +562,7 @@ public class ClientWorker implements Closeable {
                     }
                 });
 
+        //10毫秒检查一次
         this.executor.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
@@ -611,7 +617,6 @@ public class ClientWorker implements Closeable {
                         try {
                             checkLocalConfig(cacheData);
                             if (cacheData.isUseLocalConfigInfo()) {
-                                //如果使用本地配置就去比较本地配置与快照的md5是否一样，变化了就发起通知
                                 cacheData.checkListenerMd5();
                             }
                         } catch (Exception e) {
@@ -620,7 +625,7 @@ public class ClientWorker implements Closeable {
                     }
                 }
 
-                // check server config,获取键值
+                // check server config
                 List<String> changedGroupKeys = checkUpdateDataIds(cacheDatas, inInitializingCacheList);
                 if (!CollectionUtils.isEmpty(changedGroupKeys)) {
                     LOGGER.info("get changedGroupKeys:" + changedGroupKeys);
@@ -635,7 +640,7 @@ public class ClientWorker implements Closeable {
                         tenant = key[2];
                     }
                     try {
-                        //获取变更内容
+                        //从服务器端获取配置，读取超时时间是3s
                         String[] ct = getServerConfig(dataId, group, tenant, 3000L);
                         CacheData cache = cacheMap.get().get(GroupKey.getKeyTenant(dataId, group, tenant));
                         cache.setContent(ct[0]);
@@ -655,18 +660,20 @@ public class ClientWorker implements Closeable {
                 for (CacheData cacheData : cacheDatas) {
                     if (!cacheData.isInitializing() || inInitializingCacheList
                             .contains(GroupKey.getKeyTenant(cacheData.dataId, cacheData.group, cacheData.tenant))) {
+                        //检查md5值是否变化，配置变化，唤醒listener回调
                         cacheData.checkListenerMd5();
                         cacheData.setInitializing(false);
                     }
                 }
                 inInitializingCacheList.clear();
-
+                //重新放入线程池
                 executorService.execute(this);
 
             } catch (Throwable e) {
 
                 // If the rotation training task is abnormal, the next execution time of the task will be punished
                 LOGGER.error("longPolling error : ", e);
+                //2秒
                 executorService.schedule(this, taskPenaltyTime, TimeUnit.MILLISECONDS);
             }
         }
