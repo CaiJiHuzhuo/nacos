@@ -84,9 +84,8 @@ public class NacosConfigService implements ConfigService {
 
         //获取http代理对象，线程池定时执行login，当没有配置user的时候默认为true
         this.agent = new MetricsHttpAgent(new ServerHttpAgent(properties));
-        //获取nacos ip如果serverlist是固定的就不需要
         this.agent.start();
-        //实现longpolling的配置更新任务
+        //长轮询任务
         this.worker = new ClientWorker(this.agent, this.configFilterChainManager, properties);
     }
 
@@ -149,7 +148,7 @@ public class NacosConfigService implements ConfigService {
         }
 
         try {
-            // 从服务器获取配置
+            //服务器查询，并Snapshot
             String[] ct = worker.getServerConfig(dataId, group, tenant, timeoutMs);
             cr.setContent(ct[0]);
 

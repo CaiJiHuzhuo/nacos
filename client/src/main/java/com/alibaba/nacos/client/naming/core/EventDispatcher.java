@@ -50,10 +50,9 @@ public class EventDispatcher implements Closeable {
 
     private ExecutorService executor = null;
 
-    //服务队列
+    //改变的服务
     private final BlockingQueue<ServiceInfo> changedServices = new LinkedBlockingQueue<ServiceInfo>();
-
-    //String 服务，List<EventListener> 监听者
+    //服务 - 监听器回调
     private final ConcurrentMap<String, List<EventListener>> observerMap = new ConcurrentHashMap<String, List<EventListener>>();
 
     private volatile boolean closed = false;
@@ -158,6 +157,7 @@ public class EventDispatcher implements Closeable {
 
         @Override
         public void run() {
+            //单线程循环执行，有改变的服务就执行，没有poll wait 5分钟
             while (!closed) {
 
                 ServiceInfo serviceInfo = null;
@@ -173,7 +173,7 @@ public class EventDispatcher implements Closeable {
 
                 try {
                     List<EventListener> listeners = observerMap.get(serviceInfo.getKey());
-                    //遍历监听者，调用其onEvent方法
+
                     if (!CollectionUtils.isEmpty(listeners)) {
                         for (EventListener listener : listeners) {
                             List<Instance> hosts = Collections.unmodifiableList(serviceInfo.getHosts());
