@@ -94,16 +94,20 @@ public class NacosNamingService implements NamingService {
         initServerAddr(properties);
         //aliyun
         InitUtils.initWebRootContext();
-        //缓存地址
+        //设置缓存地址
         initCacheDir();
-        //初始化日志name
+        //日志配置
         initLogName(properties);
-        //监听事件分发
+        //监听事件分发，当客户端订阅某个服务之后，会以listener的方式注册到EventDispatcher的队列中，当服务有变化的时候，会通知订阅者。
         this.eventDispatcher = new EventDispatcher();
-        //1.根据endpoint查找serverlist，nacos服务器地址；2.安全登陆验证
+        //定时查询endpoint serverlist地址
         this.serverProxy = new NamingProxy(this.namespace, this.endpoint, this.serverList, properties);
-        //初始化心跳线程池
+        //负责与服务端建立上报机制的类，对于ephemeral为true的服务，客户端需要通过BeatReactor周期性的进行服务的上报，告诉服务端该服务处于正常状态，若一段时间内未进行该服务的上报，服务端会移除该服务的注册。
+        // 这里所说的ephemeral服务是指服务信息不会在服务端持久化的服务，对于ephemeral为false的服务，服务信息会持久化到服务端。
         this.beatReactor = new BeatReactor(this.serverProxy, initClientBeatThreadCount(properties));
+//        HostReactor用于获取、保存、更新各Service实例信息。
+//        成员变量Map<String, ServiceInfo> serviceInfoMap中保存了已获取到的服务的信息，key为{服务名}@@{集群名}。
+//        HostReactor会启动名为com.alibaba.nacos.client.naming.updater的线程来更新服务信息，默认线程数为1~CPU核心数的一半，可由namingPollingThreadCount参数指定。定时任务UpdateTask会根据服务的cacheMillis值定时更新服务信息，默认值为10秒。该定时任务会在获取某一服务信息时创建，保存在成员变量Map<String, ScheduledFuture<?>> futureMap中
         this.hostReactor = new HostReactor(this.eventDispatcher, this.serverProxy, beatReactor, this.cacheDir,
                 isLoadCacheAtStart(properties), initPollingThreadCount(properties));
     }
@@ -208,7 +212,7 @@ public class NacosNamingService implements NamingService {
     @Override
     public void registerInstance(String serviceName, String groupName, Instance instance) throws NacosException {
         String groupedServiceName = NamingUtils.getGroupedName(serviceName, groupName);
-        //是否是临时实例
+        //临时节点需要发送心跳
         if (instance.isEphemeral()) {
             //构建心跳实例beatinfo，Period = 5秒
             BeatInfo beatInfo = beatReactor.buildBeatInfo(groupedServiceName, instance);
@@ -252,11 +256,9 @@ public class NacosNamingService implements NamingService {
     @Override
     public void deregisterInstance(String serviceName, String groupName, Instance instance) throws NacosException {
         if (instance.isEphemeral()) {
-            //移除心跳，停止任务
             beatReactor.removeBeatInfo(NamingUtils.getGroupedName(serviceName, groupName), instance.getIp(),
                     instance.getPort());
         }
-        //向服务端发送注销服务的请求
         serverProxy.deregisterService(NamingUtils.getGroupedName(serviceName, groupName), instance);
     }
 

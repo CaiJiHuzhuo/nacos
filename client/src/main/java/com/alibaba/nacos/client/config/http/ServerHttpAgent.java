@@ -275,6 +275,7 @@ public class ServerHttpAgent implements HttpAgent {
         //处理请求地址，命名空间等信息，配置nacosRestTemplate
         this.serverListMgr = new ServerListManager(properties);
         //配置权限信息，用户名，密码，路径
+        //配置nacosRestTemplate
         this.securityProxy = new SecurityProxy(properties, NACOS_RESTTEMPLATE);
         this.namespaceId = properties.getProperty(PropertyKeyConst.NAMESPACE);
         init(properties);

@@ -148,7 +148,6 @@ public class ServerListManager implements Closeable {
         String namespace = properties.getProperty(PropertyKeyConst.NAMESPACE);
         initParam(properties);
 
-        //有配置serverAddrs ，fixed为true，没有配置，通过endpoint获取服务器ip，fixed为false
         if (StringUtils.isNotEmpty(serverAddrsStr)) {
             this.isFixed = true;
             List<String> serverAddrs = new ArrayList<String>();
@@ -247,7 +246,7 @@ public class ServerListManager implements Closeable {
      * @throws NacosException nacos exception
      */
     public synchronized void start() throws NacosException {
-        //当为endpoint时  isStarted 默认为false isFixed为false
+
         if (isStarted || isFixed) {
             return;
         }
