@@ -30,7 +30,7 @@ import com.alibaba.nacos.api.naming.NamingService;
 public class App {
     public static void main(String[] args) throws NacosException {
         Properties properties = new Properties();
-        properties.setProperty("serverAddr", "localhost:8848");
+        properties.setProperty("serverAddr", "localhost:8847");
 //        properties.setProperty("namespace", "fe3078a2-019d-4fdd-b6cf-22c3117f847d");
         NamingService naming = NamingFactory.createNamingService(properties);
         naming.registerInstance("nacos.test.3", "10.0.4.221", 8081, "TEST1");

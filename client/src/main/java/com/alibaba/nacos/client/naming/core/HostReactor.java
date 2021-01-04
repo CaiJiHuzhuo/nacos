@@ -117,11 +117,12 @@ public class HostReactor implements Closeable {
     }
 
     public synchronized ScheduledFuture<?> addTask(UpdateTask task) {
+        //1秒钟执行一次
         return executor.schedule(task, DEFAULT_DELAY, TimeUnit.MILLISECONDS);
     }
 
     /**
-     * Process service json.
+     * Process service json.  1.在查询服务实例 getALLInstance selectInstances selectOneHealthyInstance subscribe 中被调用
      *
      * @param json service json
      * @return service info
@@ -188,18 +189,21 @@ public class HostReactor implements Closeable {
 
             }
 
+            //有新的ip
             if (newHosts.size() > 0) {
                 changed = true;
                 NAMING_LOGGER.info("new ips(" + newHosts.size() + ") service: " + serviceInfo.getKey() + " -> "
                         + JacksonUtils.toJson(newHosts));
             }
 
+            //移除了ip
             if (remvHosts.size() > 0) {
                 changed = true;
                 NAMING_LOGGER.info("removed ips(" + remvHosts.size() + ") service: " + serviceInfo.getKey() + " -> "
                         + JacksonUtils.toJson(remvHosts));
             }
 
+            //ip被修改
             if (modHosts.size() > 0) {
                 changed = true;
                 updateBeatInfo(modHosts);
@@ -210,6 +214,7 @@ public class HostReactor implements Closeable {
             serviceInfo.setJsonFromServer(json);
 
             if (newHosts.size() > 0 || remvHosts.size() > 0 || modHosts.size() > 0) {
+                //往监听事件队列中put元素，写入disk中
                 eventDispatcher.serviceChanged(serviceInfo);
                 DiskCache.write(serviceInfo, cacheDir);
             }
@@ -226,6 +231,7 @@ public class HostReactor implements Closeable {
 
         MetricsMonitor.getServiceInfoMapSizeMonitor().set(serviceInfoMap.size());
 
+        //如果发送改变，打印当前ip
         if (changed) {
             NAMING_LOGGER.info("current ips:(" + serviceInfo.ipCount() + ") service: " + serviceInfo.getKey() + " -> "
                     + JacksonUtils.toJson(serviceInfo.getHosts()));
@@ -283,7 +289,7 @@ public class HostReactor implements Closeable {
             updatingMap.remove(serviceName);
 
         } else if (updatingMap.containsKey(serviceName)) {
-
+            //正在更新就等待5000
             if (UPDATE_HOLD_INTERVAL > 0) {
                 // hold a moment waiting for update finish
                 synchronized (serviceObj) {
@@ -318,7 +324,7 @@ public class HostReactor implements Closeable {
      * @param clusters    clusters
      */
     public void scheduleUpdateIfAbsent(String serviceName, String clusters) {
-        //缓存中存在，直接返回
+        //缓存中已经存在这个任务，直接返回
         if (futureMap.get(ServiceInfo.getKey(serviceName, clusters)) != null) {
             return;
         }
@@ -348,6 +354,7 @@ public class HostReactor implements Closeable {
             String result = serverProxy.queryList(serviceName, clusters, pushReceiver.getUdpPort(), false);
 
             if (StringUtils.isNotEmpty(result)) {
+                //往serviceInfoMap中put service
                 processServiceJson(result);
             }
         } finally {
@@ -426,7 +433,7 @@ public class HostReactor implements Closeable {
                 }
 
                 if (serviceObj.getLastRefTime() <= lastRefTime) {
-                    //请求注册中心
+                    //请求注册中心，更新service
                     updateService(serviceName, clusters);
                     serviceObj = serviceInfoMap.get(ServiceInfo.getKey(serviceName, clusters));
                 } else {
