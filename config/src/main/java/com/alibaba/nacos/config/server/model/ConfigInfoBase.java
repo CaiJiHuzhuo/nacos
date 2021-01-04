@@ -31,77 +31,78 @@ import java.io.Serializable;
  * @author Nacos
  */
 public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> {
-    
+
     static final long serialVersionUID = -1L;
-    
+
     @JsonSerialize(using = ToStringSerializer.class)
     private long id;
-    
+
     private String dataId;
-    
+
     private String group;
-    
+
     private String content;
-    
+
     private String md5;
-    
+
     public ConfigInfoBase() {
-    
+
     }
-    
+
     public ConfigInfoBase(String dataId, String group, String content) {
         this.dataId = dataId;
         this.group = group;
         this.content = content;
         if (this.content != null) {
+            //md5
             this.md5 = MD5Utils.md5Hex(this.content, Constants.ENCODE);
         }
     }
-    
+
     public long getId() {
         return id;
     }
-    
+
     public void setId(long id) {
         this.id = id;
     }
-    
+
     public String getDataId() {
         return dataId;
     }
-    
+
     public void setDataId(String dataId) {
         this.dataId = dataId;
     }
-    
+
     public String getGroup() {
         return group;
     }
-    
+
     public void setGroup(String group) {
         this.group = group;
     }
-    
+
     public String getContent() {
         return content;
     }
-    
+
     public void setContent(String content) {
         this.content = content;
     }
-    
+
     public String getMd5() {
         return md5;
     }
-    
+
     public void setMd5(String md5) {
         this.md5 = md5;
     }
-    
+
     public void dump(PrintWriter writer) {
         writer.write(this.content);
     }
-    
+
     @Override
     public int compareTo(ConfigInfoBase o) {
         if (o == null) {
@@ -123,7 +124,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
                 }
             }
         }
-        
+
         if (this.group == null) {
             if (o.getGroup() == null) {
                 return 0;
@@ -140,7 +141,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
                 }
             }
         }
-        
+
         if (this.content == null) {
             if (o.getContent() == null) {
                 return 0;
@@ -159,7 +160,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
         }
         return 0;
     }
-    
+
     @Override
     public int hashCode() {
         final int prime = 31;
@@ -170,7 +171,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
         result = prime * result + ((md5 == null) ? 0 : md5.hashCode());
         return result;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -213,7 +214,7 @@ public class ConfigInfoBase implements Serializable, Comparable<ConfigInfoBase> 
         }
         return true;
     }
-    
+
     @Override
     public String toString() {
         return "ConfigInfoBase{" + "id=" + id + ", dataId='" + dataId + '\'' + ", group='" + group + '\''
